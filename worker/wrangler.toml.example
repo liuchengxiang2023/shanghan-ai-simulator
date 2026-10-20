@@ -1,0 +1,14 @@
+name = "shanghan-bianzheng-api"
+main = "worker.js"
+compatibility_date = "2026-10-20"
+
+# Do NOT put secrets in this file, not even in commented examples.
+[vars]
+# DeepSeek（OpenAI 兼容）为本项目默认提供商；也可换回 OpenAI 或其他兼容网关
+OPENAI_MODEL = "deepseek-chat"
+OPENAI_BASE_URL = "https://api.deepseek.com/v1"
+OPENAI_JSON_MODE = "true"
+ALLOWED_ORIGIN = "https://liuchengxiang2023.github.io"
+# Require a strong SITE_ACCESS_CODE secret. Set with:
+# npx wrangler secret put OPENAI_API_KEY
+# npx wrangler secret put SITE_ACCESS_CODE

@@ -1,0 +1,8 @@
+{
+  "name": "shanghan-bianzheng-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test-worker.mjs"
+  }
+}
