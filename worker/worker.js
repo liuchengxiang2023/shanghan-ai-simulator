@@ -1,9 +1,11 @@
 /**
- * Cloudflare Worker: keeps provider API keys out of Github Pages.
- * REQUIRED secrets/env:
- * - OPENAI_API_KEY, SITE_ACCESS_CODE, ALLOWED_ORIGIN
- * Optional: OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_JSON_MODE
+ * Cloudflare Worker: keeps provider API keys out of static pages.
+ * All-in-one mode (default): serves the bundled index.html at "/" and the API under
+ * "/api/*" on the same origin - no CORS, no ALLOWED_ORIGIN, no separate hosting needed.
+ * API-only mode: pair with a page hosted elsewhere (e.g. GitHub Pages) and set ALLOWED_ORIGIN.
+ * REQUIRED secrets: OPENAI_API_KEY, SITE_ACCESS_CODE. Optional: OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_JSON_MODE.
  */
+import INDEX_HTML from '../index.html';
 const FORMULAS = {
   guizhi: '桂枝汤', mahuang: '麻黄汤', gegen: '葛根汤',
   daqing: '大青龙汤', xiaoqing: '小青龙汤', xiaochai: '小柴胡汤',
@@ -27,6 +29,12 @@ const json = (body, status, cors) => new Response(JSON.stringify(body), {status,
 }});
 function corsHeaders(request, env) {
   const source = request.headers.get('Origin') || '';
+  // Same-origin (all-in-one deployment) and non-browser calls need no CORS headers;
+  // they are still gated by the access code below.
+  if (!source) return {};
+  let selfOrigin = '';
+  try { selfOrigin = new URL(request.url).origin; } catch (e) {}
+  if (source === selfOrigin) return {};
   const allowed = String(env.ALLOWED_ORIGIN||'').trim();
   if (!allowed || source !== allowed) return null;
   return {
@@ -92,12 +100,17 @@ function clean(content) {
 }
 export default {
   async fetch(request, env) {
+    const path=new URL(request.url).pathname;
+    // All-in-one mode: this Worker also serves the page itself.
+    if(path==='/'||path==='/index.html')return new Response(INDEX_HTML,{headers:{
+      'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+    if(path==='/favicon.ico')return new Response(null,{status:204});
+    if(!path.startsWith('/api/'))return Response.redirect(new URL('/',request.url).toString(),302);
     const cors=corsHeaders(request,env);
     if(!cors)return json({error:'此来源未获授权。检查 Worker 的 ALLOWED_ORIGIN 设置。'},403,{});
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
-    const path=new URL(request.url).pathname;
     if(!['/api/status','/api/analyze'].includes(path))return json({error:'接口不存在'},404,cors);
-    if(!env.OPENAI_API_KEY || !env.SITE_ACCESS_CODE || !env.ALLOWED_ORIGIN)return json({error:'尚未配置服务端 API Key、访问码或允许来源'},503,cors);
+    if(!env.OPENAI_API_KEY || !env.SITE_ACCESS_CODE)return json({error:'尚未配置服务端 API Key 或访问码'},503,cors);
     if(!sameSecret(request.headers.get('X-App-Access'),env.SITE_ACCESS_CODE))return json({error:'访问码不正确'},401,cors);
     if(path==='/api/status')return request.method==='GET'
       ? json({available:true,model:String(env.OPENAI_MODEL||'deepseek-chat')},200,cors)
